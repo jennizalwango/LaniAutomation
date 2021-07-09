@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.256" timestamp="2021-06-24T14:30:28.942297" hostname="MacBook-Pro.local"><testcase classname="test_samplecode" name="test_my_very_first_test" time="0.008"><failure message="selenium.common.exceptions.WebDriverException: Message: 'chromedriver.exe' executable needs to be in PATH. Please see https://sites.google.com/a/chromium.org/chromedriver/home">self = &lt;selenium.webdriver.chrome.service.Service object at 0x1033029d0&gt;
+
+    def start(self):
+        """
+        Starts the Service.
+    
+        :Exceptions:
+         - WebDriverException : Raised either when it can't start the service
+           or when it can't connect to the service
+        """
+        try:
+            cmd = [self.path]
+            cmd.extend(self.command_line_args())
+&gt;           self.process = subprocess.Popen(cmd, env=self.env,
+                                            close_fds=platform.system() != 'Windows',
+                                            stdout=self.log_file,
+                                            stderr=self.log_file,
+                                            stdin=PIPE)
+
+env/lib/python3.8/site-packages/selenium/webdriver/common/service.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;subprocess.Popen object at 0x103302a60&gt;, args = ['/Users/johnseremba/Work/learnTesting/chromedriver_win32/chromedriver.exe', '--port=51214'], bufsize = -1, executable = None, stdin = -1
+stdout = -3, stderr = -3, preexec_fn = None, close_fds = True, shell = False, cwd = None
+env = environ({'USER': 'johnseremba', '__CFBundleIdentifier': 'com.microsoft.VSCode', 'COMMAND_MODE': 'unix2003', 'LOGNAME':...remba/Work/learnTesting/env/bin/python3', 'PYTEST_CURRENT_TEST': 'test_samplecode.py::test_my_very_first_test (call)'})
+universal_newlines = None, startupinfo = None, creationflags = 0, restore_signals = True, start_new_session = False, pass_fds = ()
+
+    def __init__(self, args, bufsize=-1, executable=None,
+                 stdin=None, stdout=None, stderr=None,
+                 preexec_fn=None, close_fds=True,
+                 shell=False, cwd=None, env=None, universal_newlines=None,
+                 startupinfo=None, creationflags=0,
+                 restore_signals=True, start_new_session=False,
+                 pass_fds=(), *, encoding=None, errors=None, text=None):
+        """Create new Popen instance."""
+        _cleanup()
+        # Held while anything is calling waitpid before returncode has been
+        # updated to prevent clobbering returncode if wait() or poll() are
+        # called from multiple threads at once.  After acquiring the lock,
+        # code must re-check self.returncode to see if another thread just
+        # finished a waitpid() call.
+        self._waitpid_lock = threading.Lock()
+    
+        self._input = None
+        self._communication_started = False
+        if bufsize is None:
+            bufsize = -1  # Restore default
+        if not isinstance(bufsize, int):
+            raise TypeError("bufsize must be an integer")
+    
+        if _mswindows:
+            if preexec_fn is not None:
+                raise ValueError("preexec_fn is not supported on Windows "
+                                 "platforms")
+        else:
+            # POSIX
+            if pass_fds and not close_fds:
+                warnings.warn("pass_fds overriding close_fds.", RuntimeWarning)
+                close_fds = True
+            if startupinfo is not None:
+                raise ValueError("startupinfo is only supported on Windows "
+                                 "platforms")
+            if creationflags != 0:
+                raise ValueError("creationflags is only supported on Windows "
+                                 "platforms")
+    
+        self.args = args
+        self.stdin = None
+        self.stdout = None
+        self.stderr = None
+        self.pid = None
+        self.returncode = None
+        self.encoding = encoding
+        self.errors = errors
+    
+        # Validate the combinations of text and universal_newlines
+        if (text is not None and universal_newlines is not None
+            and bool(universal_newlines) != bool(text)):
+            raise SubprocessError('Cannot disambiguate when both text '
+                                  'and universal_newlines are supplied but '
+                                  'different. Pass one or the other.')
+    
+        # Input and output objects. The general principle is like
+        # this:
+        #
+        # Parent                   Child
+        # ------                   -----
+        # p2cwrite   ---stdin---&gt;  p2cread
+        # c2pread    &lt;--stdout---  c2pwrite
+        # errread    &lt;--stderr---  errwrite
+        #
+        # On POSIX, the child objects are file descriptors.  On
+        # Windows, these are Windows file handles.  The parent objects
+        # are file descriptors on both platforms.  The parent objects
+        # are -1 when not using PIPEs. The child objects are -1
+        # when not redirecting.
+    
+        (p2cread, p2cwrite,
+         c2pread, c2pwrite,
+         errread, errwrite) = self._get_handles(stdin, stdout, stderr)
+    
+        # We wrap OS handles *before* launching the child, otherwise a
+        # quickly terminating child could make our fds unwrappable
+        # (see #8458).
+    
+        if _mswindows:
+            if p2cwrite != -1:
+                p2cwrite = msvcrt.open_osfhandle(p2cwrite.Detach(), 0)
+            if c2pread != -1:
+                c2pread = msvcrt.open_osfhandle(c2pread.Detach(), 0)
+            if errread != -1:
+                errread = msvcrt.open_osfhandle(errread.Detach(), 0)
+    
+        self.text_mode = encoding or errors or text or universal_newlines
+    
+        # How long to resume waiting on a child after the first ^C.
+        # There is no right value for this.  The purpose is to be polite
+        # yet remain good for interactive users trying to exit a tool.
+        self._sigint_wait_secs = 0.25  # 1/xkcd221.getRandomNumber()
+    
+        self._closed_child_pipe_fds = False
+    
+        if self.text_mode:
+            if bufsize == 1:
+                line_buffering = True
+                # Use the default buffer size for the underlying binary streams
+                # since they don't support line buffering.
+                bufsize = -1
+            else:
+                line_buffering = False
+    
+        try:
+            if p2cwrite != -1:
+                self.stdin = io.open(p2cwrite, 'wb', bufsize)
+                if self.text_mode:
+                    self.stdin = io.TextIOWrapper(self.stdin, write_through=True,
+                            line_buffering=line_buffering,
+                            encoding=encoding, errors=errors)
+            if c2pread != -1:
+                self.stdout = io.open(c2pread, 'rb', bufsize)
+                if self.text_mode:
+                    self.stdout = io.TextIOWrapper(self.stdout,
+                            encoding=encoding, errors=errors)
+            if errread != -1:
+                self.stderr = io.open(errread, 'rb', bufsize)
+                if self.text_mode:
+                    self.stderr = io.TextIOWrapper(self.stderr,
+                            encoding=encoding, errors=errors)
+    
+&gt;           self._execute_child(args, executable, preexec_fn, close_fds,
+                                pass_fds, cwd, env,
+                                startupinfo, creationflags, shell,
+                                p2cread, p2cwrite,
+                                c2pread, c2pwrite,
+                                errread, errwrite,
+                                restore_signals, start_new_session)
+
+/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.8/lib/python3.8/subprocess.py:854: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;subprocess.Popen object at 0x103302a60&gt;, args = ['/Users/johnseremba/Work/learnTesting/chromedriver_win32/chromedriver.exe', '--port=51214']
+executable = b'/Users/johnseremba/Work/learnTesting/chromedriver_win32/chromedriver.exe', preexec_fn = None, close_fds = True, pass_fds = (), cwd = None
+env = environ({'USER': 'johnseremba', '__CFBundleIdentifier': 'com.microsoft.VSCode', 'COMMAND_MODE': 'unix2003', 'LOGNAME':...remba/Work/learnTesting/env/bin/python3', 'PYTEST_CURRENT_TEST': 'test_samplecode.py::test_my_very_first_test (call)'})
+startupinfo = None, creationflags = 0, shell = False, p2cread = 14, p2cwrite = 15, c2pread = -1, c2pwrite = 16, errread = -1, errwrite = 16, restore_signals = True, start_new_session = False
+
+    def _execute_child(self, args, executable, preexec_fn, close_fds,
+                       pass_fds, cwd, env,
+                       startupinfo, creationflags, shell,
+                       p2cread, p2cwrite,
+                       c2pread, c2pwrite,
+                       errread, errwrite,
+                       restore_signals, start_new_session):
+        """Execute program (POSIX version)"""
+    
+        if isinstance(args, (str, bytes)):
+            args = [args]
+        elif isinstance(args, os.PathLike):
+            if shell:
+                raise TypeError('path-like args is not allowed when '
+                                'shell is true')
+            args = [args]
+        else:
+            args = list(args)
+    
+        if shell:
+            # On Android the default shell is at '/system/bin/sh'.
+            unix_shell = ('/system/bin/sh' if
+                      hasattr(sys, 'getandroidapilevel') else '/bin/sh')
+            args = [unix_shell, "-c"] + args
+            if executable:
+                args[0] = executable
+    
+        if executable is None:
+            executable = args[0]
+    
+        sys.audit("subprocess.Popen", executable, args, cwd, env)
+    
+        if (_USE_POSIX_SPAWN
+                and os.path.dirname(executable)
+                and preexec_fn is None
+                and not close_fds
+                and not pass_fds
+                and cwd is None
+                and (p2cread == -1 or p2cread &gt; 2)
+                and (c2pwrite == -1 or c2pwrite &gt; 2)
+                and (errwrite == -1 or errwrite &gt; 2)
+                and not start_new_session):
+            self._posix_spawn(args, executable, env, restore_signals,
+                              p2cread, p2cwrite,
+                              c2pread, c2pwrite,
+                              errread, errwrite)
+            return
+    
+        orig_executable = executable
+    
+        # For transferring possible exec failure from child to parent.
+        # Data format: "exception name:hex errno:description"
+        # Pickle is not used; it is complex and involves memory allocation.
+        errpipe_read, errpipe_write = os.pipe()
+        # errpipe_write must not be in the standard io 0, 1, or 2 fd range.
+        low_fds_to_close = []
+        while errpipe_write &lt; 3:
+            low_fds_to_close.append(errpipe_write)
+            errpipe_write = os.dup(errpipe_write)
+        for low_fd in low_fds_to_close:
+            os.close(low_fd)
+        try:
+            try:
+                # We must avoid complex work that could involve
+                # malloc or free in the child process to avoid
+                # potential deadlocks, thus we do all this here.
+                # and pass it to fork_exec()
+    
+                if env is not None:
+                    env_list = []
+                    for k, v in env.items():
+                        k = os.fsencode(k)
+                        if b'=' in k:
+                            raise ValueError("illegal environment variable name")
+                        env_list.append(k + b'=' + os.fsencode(v))
+                else:
+                    env_list = None  # Use execv instead of execve.
+                executable = os.fsencode(executable)
+                if os.path.dirname(executable):
+                    executable_list = (executable,)
+                else:
+                    # This matches the behavior of os._execvpe().
+                    executable_list = tuple(
+                        os.path.join(os.fsencode(dir), executable)
+                        for dir in os.get_exec_path(env))
+                fds_to_keep = set(pass_fds)
+                fds_to_keep.add(errpipe_write)
+                self.pid = _posixsubprocess.fork_exec(
+                        args, executable_list,
+                        close_fds, tuple(sorted(map(int, fds_to_keep))),
+                        cwd, env_list,
+                        p2cread, p2cwrite, c2pread, c2pwrite,
+                        errread, errwrite,
+                        errpipe_read, errpipe_write,
+                        restore_signals, start_new_session, preexec_fn)
+                self._child_created = True
+            finally:
+                # be sure the FD is closed no matter what
+                os.close(errpipe_write)
+    
+            self._close_pipe_fds(p2cread, p2cwrite,
+                                 c2pread, c2pwrite,
+                                 errread, errwrite)
+    
+            # Wait for exec to fail or succeed; possibly raising an
+            # exception (limited in size)
+            errpipe_data = bytearray()
+            while True:
+                part = os.read(errpipe_read, 50000)
+                errpipe_data += part
+                if not part or len(errpipe_data) &gt; 50000:
+                    break
+        finally:
+            # be sure the FD is closed no matter what
+            os.close(errpipe_read)
+    
+        if errpipe_data:
+            try:
+                pid, sts = os.waitpid(self.pid, 0)
+                if pid == self.pid:
+                    self._handle_exitstatus(sts)
+                else:
+                    self.returncode = sys.maxsize
+            except ChildProcessError:
+                pass
+    
+            try:
+                exception_name, hex_errno, err_msg = (
+                        errpipe_data.split(b':', 2))
+                # The encoding here should match the encoding
+                # written in by the subprocess implementations
+                # like _posixsubprocess
+                err_msg = err_msg.decode()
+            except ValueError:
+                exception_name = b'SubprocessError'
+                hex_errno = b'0'
+                err_msg = 'Bad exception data from child: {!r}'.format(
+                              bytes(errpipe_data))
+            child_exception_type = getattr(
+                    builtins, exception_name.decode('ascii'),
+                    SubprocessError)
+            if issubclass(child_exception_type, OSError) and hex_errno:
+                errno_num = int(hex_errno, 16)
+                child_exec_never_called = (err_msg == "noexec")
+                if child_exec_never_called:
+                    err_msg = ""
+                    # The error must be from chdir(cwd).
+                    err_filename = cwd
+                else:
+                    err_filename = orig_executable
+                if errno_num != 0:
+                    err_msg = os.strerror(errno_num)
+&gt;               raise child_exception_type(errno_num, err_msg, err_filename)
+E               FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnseremba/Work/learnTesting/chromedriver_win32/chromedriver.exe'
+
+/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.8/lib/python3.8/subprocess.py:1702: FileNotFoundError
+
+During handling of the above exception, another exception occurred:
+
+    def test_my_very_first_test():
+    
+      # driver = webdriver.Chrome(os.path.join(folder_path, 'chromedriver'))
+&gt;     driver = webdriver.Chrome('/Users/johnseremba/Work/learnTesting/chromedriver_win32/chromedriver.exe')
+
+test_samplecode.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+env/lib/python3.8/site-packages/selenium/webdriver/chrome/webdriver.py:73: in __init__
+    self.service.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;selenium.webdriver.chrome.service.Service object at 0x1033029d0&gt;
+
+    def start(self):
+        """
+        Starts the Service.
+    
+        :Exceptions:
+         - WebDriverException : Raised either when it can't start the service
+           or when it can't connect to the service
+        """
+        try:
+            cmd = [self.path]
+            cmd.extend(self.command_line_args())
+            self.process = subprocess.Popen(cmd, env=self.env,
+                                            close_fds=platform.system() != 'Windows',
+                                            stdout=self.log_file,
+                                            stderr=self.log_file,
+                                            stdin=PIPE)
+        except TypeError:
+            raise
+        except OSError as err:
+            if err.errno == errno.ENOENT:
+&gt;               raise WebDriverException(
+                    "'%s' executable needs to be in PATH. %s" % (
+                        os.path.basename(self.path), self.start_error_message)
+E                       selenium.common.exceptions.WebDriverException: Message: 'chromedriver.exe' executable needs to be in PATH. Please see https://sites.google.com/a/chromium.org/chromedriver/home
+
+env/lib/python3.8/site-packages/selenium/webdriver/common/service.py:81: WebDriverException</failure></testcase></testsuite></testsuites>
